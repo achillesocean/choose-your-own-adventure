@@ -22,15 +22,15 @@ def get_session_id(session_id: str | None = Cookie(None)):
     session_id = str(uuid.uuid4())
   return session_id
 
-@router.post("/create", response_model=StoryJobResponse)
+@router.post("/create", response_model=StoryJobResponse) # how come we respond with a StoryJobResponse for a create_story route?
 def create_story(
   request: CreateStoryRequest,
   background_tasks: BackgroundTasks,
-  response: Response,
-  session_id: str = Depends(get_session_id),
+  response: Response, # what is this, how is it a query parameter, who is gonna pass it in?
+  session_id: str = Depends(get_session_id), # does this just call the func to generate a session id?
   db: Session = Depends(get_db)
 ):
-  response.set_cookie(key="session_id", value=session_id, httponly=True)
+  response.set_cookie(key="session_id", value=session_id, httponly=True)# explain this
 
   job_id = str(uuid.uuid4())
 
@@ -45,12 +45,13 @@ def create_story(
   # notice that this job can be found within the database before the background task is finished
 
   background_tasks.add_task(generate_story_task, job_id, request.theme, session_id)
-
+  # what does the add_task method do with these arguments? they're the same arguments as the parameter of generate_story_task.
   return job
 
 def generate_story_task(job_id: str, theme: str, session_id: str):
   db = SessionLocal()
 
+  # with this nested try block, we make sure that the database connection is closed even if an exception is raised
   try:
     job = db.query(StoryJob).filter(StoryJob.job_id == job_id).first()
 
@@ -58,9 +59,9 @@ def generate_story_task(job_id: str, theme: str, session_id: str):
 
     try:
       job.status = "processing"
-      db.commit()
+      db.commit() # is this really necessary?
 
-      story = StoryGenerator.generate_story(db, session_id, theme)
+      story = StoryGenerator.generate_story(db, session_id, theme) # this only returns the story id and root node, so you still have to create the tree
 
       job.story_id = story.id
       job.status = "completed"
@@ -78,6 +79,7 @@ def generate_story_task(job_id: str, theme: str, session_id: str):
 
 @router.get("/{story_id}/complete", response_model=CompleteStoryResponse)
 def get_complete_story(story_id: int, db: Session = Depends(get_db)):
+  # how come this endpoint accepts a db session, because it's not called anywhere else? does it have something to do with dependency injection?
   story = db.query(Story).filter(Story.id == story_id).first()
   if not story:
     raise HTTPException(status_code=404, detail="Story not found")
@@ -93,6 +95,7 @@ def build_complete_story_tree(db: Session, story: Story) -> CompleteStoryRespons
 
   node_dict = {}
   for node in nodes:
+    # node as is a type of StoryNode, right, so why do we need to convert it to a CompleteStoryNodeResponse?
     node_response = CompleteStoryNodeResponse(
       id=node.id,
       content=node.content,
@@ -114,3 +117,4 @@ def build_complete_story_tree(db: Session, story: Story) -> CompleteStoryRespons
     root_node=node_dict[root_node.id],
     all_nodes=node_dict
   )
+# so this doesn't actually build the tree? it provides the story, root node, and all related nodes. I guess that is all you need from the backend

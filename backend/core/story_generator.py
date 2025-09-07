@@ -1,3 +1,4 @@
+# core/story_generator.py
 from sqlalchemy.orm import Session
 from core.config import settings
 
@@ -19,6 +20,7 @@ class StoryGenerator:
     llm = cls._get_llm()
     story_parser = PydanticOutputParser(pydantic_object=StoryLLMResponse)
 
+    # I need to learn how the hell this snippet works.
     prompt = ChatPromptTemplate.from_messages([
       (
         "system",
@@ -45,7 +47,7 @@ class StoryGenerator:
 
     root_node_data = story_structure.rootNode
     if isinstance(root_node_data, dict):
-      root_node_data = StoryNodeLLM.model_validate(root_node_data)
+      root_node_data = StoryNodeLLM.model_validate(root_node_data) # why the need, just an extra layer of error handling?
 
     cls._process_story_node(db, story_db.id, root_node_data, is_root=True)
     # notice how we're passing the same db session to the processor as we are using in this generate_story func.
@@ -56,6 +58,7 @@ class StoryGenerator:
 
   @classmethod
   def _process_story_node(cls, db: Session, story_id: int, node_data: StoryNodeLLM, is_root: bool = False) -> StoryNode:
+    # this method just creates nodes as they will be stored in the database!
     node = StoryNode(
       story_id=story_id,
       content=node_data.content if hasattr(node_data, "content") else node_data["content"],
@@ -64,8 +67,8 @@ class StoryGenerator:
       is_winning_ending=node_data.isWinningEnding if hasattr(node_data, "isWinningEnding") else node_data["isWinningEnding"],
       options=[]
     )
-    db.add(node)
-    db.flush
+    db.add(node) # note how you just add your object to your db and it knows which table to add it to.
+    db.flush()
 
     if not node.is_ending and (hasattr(node_data, "options") and node_data.options):
       options_list = []
@@ -74,7 +77,7 @@ class StoryGenerator:
         next_node = option_data.nextNode # each option is meant to have a next node?
         # validate that it's correct if this next node is a dictionary
         if isinstance(next_node, dict):
-          next_node = StoryNodeLLM.model_validate(next_node)    
+          next_node = StoryNodeLLM.model_validate(next_node) # I wanna see what this validates actually. 
         
         child_node = cls._process_story_node(db, story_id, next_node, is_root=False)
 
@@ -85,5 +88,5 @@ class StoryGenerator:
 
       node.options = options_list
 
-    db.flush()
+    db.flush() # is this right?
     return node

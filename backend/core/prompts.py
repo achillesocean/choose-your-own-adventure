@@ -1,3 +1,4 @@
+# core/prompts.py
 STORY_PROMPT = """
                 You are a creative story writer that creates engaging choose-your-own-adventure stories.
                 Generate a complete branching story with multiple paths and endings in the JSON format I'll specify.
